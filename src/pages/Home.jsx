@@ -16,6 +16,19 @@ const Home = () => {
     const [showExploreHint, setShowExploreHint] = useState(false);
     const lastScrollTime = useRef(0);
 
+    const [isMobile, setIsMobile] = useState(false);
+    const lenisRef = useRef()
+
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+
     useEffect(() => {
         if (isAtTop) {
             const interval = setInterval(() => setShowExploreHint(prev => !prev), 2500);
@@ -25,8 +38,33 @@ const Home = () => {
         }
     }, [isAtTop]);
 
+    const handleManualUnlock = (e) => {
+        if (e) {
+            e.stopPropagation();
+        }
+
+        if (controlsRef.current) {
+            controlsRef.current.enabled = false; 
+            controlsRef.current.update(); 
+        }
+
+        setIsLocked(false);
+        setCanZoom(false);
+        
+        setTimeout(() => {
+            if (lenisRef.current) {
+                lenisRef.current.scrollTo('#about', { duration: 1.2, force: true });
+            } else {
+                document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' });
+            }
+            
+            if (controlsRef.current) controlsRef.current.enabled = true;
+        }, 10);
+    };
+
     useEffect(() => {
         const lenis = new Lenis({ duration: 1.5, smoothWheel: true });
+        lenisRef.current = lenis
         function raf(time) { lenis.raf(time); requestAnimationFrame(raf); }
         requestAnimationFrame(raf);
         return () => lenis.destroy();
@@ -53,14 +91,13 @@ const Home = () => {
         };
 
         const handleScroll = () => {
-            const currentScroll = window.scrollY;
             const top = window.scrollY < 10;
             setIsAtTop(top);
             if (top && !isLocked) {
                 setIsLocked(true);
                 setCanZoom(true);
+                if (controlsRef.current) controlsRef.current.update();
             }
-            if (!top) lastScrollTime.current = Date.now();
         };
 
         window.addEventListener('wheel', handleWheel, { passive: false });
@@ -73,42 +110,31 @@ const Home = () => {
 
     return (
         <main className={`relative transition-colors duration-500 ${isLocked ? 'h-screen overflow-hidden bg-white' : 'min-h-screen bg-[#fff0f5]'}`}> 
-            
-
-            <section id="hero" className="w-full h-screen sticky top-0 z-0">
-                <div className={`fixed inset-x-0 z-10 flex justify-center transition-opacity duration-1000 
-                    ${isAtTop && isFullyZoomedOut ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                    style={{ top: 'var(--nav-height, 95px)' }}>
-                    <h1 className="text-6xl md:text-8xl text-[#f3b0d4] tracking-widest uppercase ">
+            <div className={`fixed inset-x-0 z-10 flex justify-center transition-opacity duration-1000 pointer-events-none
+                    ${isAtTop && isFullyZoomedOut ? 'opacity-100' : 'opacity-0'}`}
+                    style={{ top: 'clamp(95px, 10vh, 95px)' }}>
+                    <h1 className="text-6xl md:text-8xl text-[#f3b0d4] tracking-widest uppercase font-name text-center px-4">
                         Michelle Bai
                     </h1>
                 </div>
-
+            <section id="hero" className="w-full h-screen sticky top-0 z-0">
+                
+                
                 <div 
-                    onClick={() => {
-                        // 1. Unlock the scroll first
-                        setIsLocked(false);
-                        setCanZoom(false);
-                        
-                        // 2. Scroll to the About section
-                        const aboutSection = document.getElementById('about');
-                        if (aboutSection) {
-                            aboutSection.scrollIntoView({ behavior: 'smooth' });
-                        }
-                    }}
-                    className={`fixed left-1/2 -translate-x-1/2 bottom-12 z-50 transition-all duration-700 
-                    ${isAtTop && isFullyZoomedOut ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
-                    <div className="bg-pink-100/40 backdrop-blur-md px-6 py-3 rounded-full shadow-lg border border-pink-200/50 animate-bounce">
-                        <p className="text-pink-600  text-2xl">
-                            {showExploreHint ? "Click here for more! ↓" : "Scroll Up to Zoom & Spin 🖱️"}
+                    onPointerDown={handleManualUnlock}
+                    className={`fixed left-1/2 -translate-x-1/2 bottom-12 z-50 transition-all duration-700 cursor-pointer
+                        ${isAtTop && isFullyZoomedOut ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+                    
+                    <div className="bg-pink-100/40 backdrop-blur-md px-8 py-3 rounded-full shadow-lg border border-pink-200/50 animate-bounce hover:bg-pink-200/60 transition-colors pointer-events-auto">
+                        <p className="text-pink-600 text-lg md:text-2xl font-medium whitespace-nowrap">
+                            {showExploreHint
+                                ? (isMobile ? "Click here to see more! ↓"  : "Scroll down to see more! ↓ ")
+                                : (isMobile ? "Try to spin the PC" : "Scroll up to zoom & try spinning")
+                            }
                         </p>
                     </div>
                 </div>
-
-                <Canvas 
-                    className="w-full h-screen bg-transparent" 
-                    camera={{ position: [0, 3, 10], fov: 45 }} 
-                    style={{ touchAction: isLocked ? 'none' : 'auto' }}>
+                <Canvas className="w-full h-screen bg-transparent" camera={{ position: [0, 3, 10], fov: 45 }}>
                     <Suspense fallback={<Loader />}>
                         <directionalLight position={[1, 1, 1]} intensity={2} />
                         <ambientLight intensity={0.5} />
